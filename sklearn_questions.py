@@ -82,6 +82,10 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
+        X, y = validate_data(self, X, y)
+        self.X_ = X
+        self.y_ = y
+        self.classes_ = np.unique(y)
         return self
 
     def predict(self, X):
@@ -97,7 +101,16 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
         y : ndarray, shape (n_test_samples,)
             Predicted class labels for each test data sample.
         """
-        y_pred = np.zeros(X.shape[0])
+        check_is_fitted(self, ['X_', 'y_'])
+        X = validate_data(self, X, reset=False)
+
+        distances = pairwise_distances(X, self.X_)
+        nearest_indices = np.argsort(distances, axis=1)[:, :self.n_neighbors]
+        nearest_labels = self.y_[nearest_indices]
+
+        y_pred = np.array([
+            np.bincount(labels).argmax() for labels in nearest_labels
+        ])
         return y_pred
 
     def score(self, X, y):
@@ -115,23 +128,25 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
         score : float
             Accuracy of the model computed for the (X, y) pairs.
         """
-        return 0.
+        y_pred = self.predict(X)
+        return np.mean(y_pred == y)
 
 
 class MonthlySplit(BaseCrossValidator):
     """CrossValidator based on monthly split.
 
-    Split data based on the given `time_col` (or default to index). Each split
-    corresponds to one month of data for the training and the next month of
-    data for the test.
+    Split data based on the given `time_col` (or default to index). Each
+    split corresponds to one month of data for the training and the next
+    month of data for the test.
 
     Parameters
     ----------
     time_col : str, defaults to 'index'
-        Column of the input DataFrame that will be used to split the data. This
-        column should be of type datetime. If split is called with a DataFrame
-        for which this column is not a datetime, it will raise a ValueError.
-        To use the index as column just set `time_col` to `'index'`.
+        Column of the input DataFrame that will be used to split the data.
+        This column should be of type datetime. If split is called with a
+        DataFrame for which this column is not a datetime, it will raise a
+        ValueError. To use the index as column just set `time_col` to
+        `'index'`.
     """
 
     def __init__(self, time_col='index'):  # noqa: D107
@@ -155,7 +170,9 @@ class MonthlySplit(BaseCrossValidator):
         n_splits : int
             The number of splits.
         """
-        return 0
+        time_series = self._get_time_series(X)
+        unique_months = time_series.dt.to_period('M').unique()
+        return len(unique_months) - 1
 
     def split(self, X, y, groups=None):
         """Generate indices to split data into training and test set.
@@ -177,12 +194,40 @@ class MonthlySplit(BaseCrossValidator):
         idx_test : ndarray
             The testing set indices for that split.
         """
+        time_series = self._get_time_series(X)
+        periods = time_series.dt.to_period('M')
+        unique_months = periods.unique().sort_values()
 
-        n_samples = X.shape[0]
-        n_splits = self.get_n_splits(X, y, groups)
-        for i in range(n_splits):
-            idx_train = range(n_samples)
-            idx_test = range(n_samples)
-            yield (
-                idx_train, idx_test
+        for i in range(len(unique_months) - 1):
+            train_month = unique_months[i]
+            test_month = unique_months[i + 1]
+
+            idx_train = np.where(periods == train_month)[0]
+            idx_test = np.where(periods == test_month)[0]
+
+            yield idx_train, idx_test
+
+    def _get_time_series(self, X):
+        """Extract time series from X based on time_col.
+
+        Parameters
+        ----------
+        X : DataFrame
+            Input data.
+
+        Returns
+        -------
+        time_series : Series
+            The time series to use for splitting.
+        """
+        if self.time_col == 'index':
+            time_series = X.index.to_series()
+        else:
+            time_series = X[self.time_col]
+
+        if not pd.api.types.is_datetime64_any_dtype(time_series):
+            raise ValueError(
+                f"Column {self.time_col} is not of datetime type"
             )
+
+        return time_series
