@@ -108,11 +108,13 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
         nearest_indices = np.argsort(distances, axis=1)[:, :self.n_neighbors]
         nearest_labels = self.y_[nearest_indices]
 
-        y_pred = np.array([
-            np.bincount(labels.astype(int)).argmax()
-            for labels in nearest_labels
-        ])
-        return y_pred
+        # Handle both numeric and string labels
+        y_pred = []
+        for labels in nearest_labels:
+            unique, counts = np.unique(labels, return_counts=True)
+            y_pred.append(unique[np.argmax(counts)])
+
+        return np.array(y_pred)
 
     def score(self, X, y):
         """Calculate the score of the prediction.
