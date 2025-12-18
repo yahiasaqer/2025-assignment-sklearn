@@ -83,14 +83,14 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
         self : instance of KNearestNeighbors
             The current instance of the classifier
         """
-        X, y = validate_data(self, X, y) 
+        X, y = validate_data(self, X, y)
         # Check that y is not continuous
         target_type = type_of_target(y)
         if target_type == 'continuous':
             raise ValueError(
                 "Unknown label type: continuous. "
                 "KNearestNeighbors only supports discrete labels."
-            )  
+            )
         self.X_ = X
         self.y_ = y
         self.classes_ = np.unique(y)
