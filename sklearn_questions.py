@@ -59,6 +59,7 @@ from sklearn.model_selection import BaseCrossValidator
 from sklearn.utils.validation import check_is_fitted
 from sklearn.utils.validation import validate_data
 from sklearn.metrics.pairwise import pairwise_distances
+from sklearn.utils.multiclass import type_of_target
 
 
 class KNearestNeighbors(ClassifierMixin, BaseEstimator):
@@ -83,6 +84,15 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
             The current instance of the classifier
         """
         X, y = validate_data(self, X, y)
+        
+        # Check that y is not continuous
+        target_type = type_of_target(y)
+        if target_type == 'continuous':
+            raise ValueError(
+                "Unknown label type: continuous. "
+                "KNearestNeighbors only supports discrete labels."
+            )
+        
         self.X_ = X
         self.y_ = y
         self.classes_ = np.unique(y)
