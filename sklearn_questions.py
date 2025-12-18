@@ -109,7 +109,8 @@ class KNearestNeighbors(ClassifierMixin, BaseEstimator):
         nearest_labels = self.y_[nearest_indices]
 
         y_pred = np.array([
-            np.bincount(labels).argmax() for labels in nearest_labels
+            np.bincount(labels.astype(int)).argmax()
+            for labels in nearest_labels
         ])
         return y_pred
 
@@ -196,7 +197,7 @@ class MonthlySplit(BaseCrossValidator):
         """
         time_series = self._get_time_series(X)
         periods = time_series.dt.to_period('M')
-        unique_months = periods.unique().sort_values()
+        unique_months = sorted(periods.unique())
 
         for i in range(len(unique_months) - 1):
             train_month = unique_months[i]
